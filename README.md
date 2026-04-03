@@ -1,165 +1,64 @@
-# MergeGuru – AI-Powered Code Review & Analysis Platform
+# 🧑💻 MergeGuru – AI-Powered Code Companion
 
-AI-powered code analysis platform that reviews pull requests, detects issues, and provides structured improvements across code quality, bugs, and performance.
-
----
-
-## Overview
-
-MergeGuru is an AI-driven code review system designed to analyze code changes from GitHub pull requests. It identifies bugs, suggests fixes, improves code structure, evaluates documentation, and provides optimization insights.
-
-The platform is built to automate and enhance the code review process, making it faster and more consistent.
-
----
+MergeGuru is an AI-powered assistant that helps developers understand, review, and optimize codebases using locally-hosted LLMs. All processing happens on your own infrastructure — no code is shared with third-party APIs.
 
 ## Features
 
-### Code Review Automation
+- **Repository Analysis** — Scans entire repos, analyzes each module for structure, bugs, optimization opportunities, and generates documentation
+- **Merge Request Reviews** — Reviews GitHub PRs for bugs, code smells, refactoring suggestions, and provides change summaries
+- **Auto Documentation** — Generates consolidated, human-readable documentation for the entire codebase
+- **Code Assistant** — Generates code snippets and answers coding questions (Python, Java, JavaScript)
 
-* Analyzes GitHub Pull Requests
-* Detects bugs and potential issues
-* Suggests fixes with code snippets
+## Architecture
 
-### Code Quality Improvements
+- **Backend**: Flask (Python)
+- **LLM Inference**: llama.cpp via `llama-cpp-python`
+- **Models**: Quantized GGUF models running on CPU
+- **Frontend**: Vanilla HTML/CSS/JS with a dark-themed responsive UI
 
-* Refactoring suggestions
-* Documentation evaluation
-* Code readability enhancements
+## Models Used
 
-### Performance Optimization
+| Model | Purpose |
+|-------|---------|
+| `codellama-7b-instruct.Q4_0.gguf` | Code generation assistant |
+| `Meta-Llama-3.1-8B-Instruct-Q4_K_S.gguf` | File classification & documentation |
+| `qwen2.5-coder-7b-instruct-q4_0.gguf` | Code analysis & review |
+| `qwen2.5-14b-instruct-q4_0.gguf` | MR/PR review |
 
-* Identifies inefficient logic
-* Suggests optimized alternatives
+## Setup
 
-### Multi-File Analysis
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-* File-wise structured results
-* Section-based insights (bugs, fixes, optimization, etc.)
-* Interactive navigation (carousel-based UI)
-
-### Interactive Dashboard
-
-* Tab-based UI for different analysis types
-* Expandable result cards
-* Modal-based deep insights
-
----
-
-## Tech Stack
-
-* Backend: Python, Flask
-* Frontend: HTML, CSS, JavaScript
-* AI Integration: LLM-based analysis
-* Environment: python-dotenv
-
----
-
-## Project Structure
-
-```id="h2ks9p"
-project/
-│
-├── start.py
-├── app/
-│   ├── controller/
-│   │   ├── home_controller.py
-│   │   ├── submit_controller.py
-│   │   ├── polling_controller.py
-│   │   ├── reload_controller.py
-│   │   └── coder_controller.py
-│
-├── templates/
-│   └── index.html
-│
-├── static/
-│
-└── .env
-```
-
----
-
-## Requirements
-
-* Python 3.8+
-* pip
-
----
-
-## Installation
-
-```id="3c5fvp"
-git clone <your-repo-link>
-cd <project-folder>
+# Install dependencies
 pip install -r requirements.txt
-```
 
----
+# Configure environment
+cp .env.example .env
+# Edit .env with your MODEL_BASE_PATH and GITHUB_TOKEN
 
-## Environment Variables
+# Download models into your models directory
+# (See Hugging Face links for each model above)
 
-Create a `.env` file:
-
-```id="u2izj3"
-OPENAI_API_KEY=your_key_here
-```
-
----
-
-## Run the Application
-
-```id="8jph0h"
+# Run
 python start.py
 ```
 
-Access at:
+Open `http://localhost:8000` in your browser.
 
-```id="5ryhdt"
-http://127.0.0.1:8000
-```
+## Configuration
 
----
+Set these in your `.env` file:
 
-## API Endpoints
+| Variable | Description |
+|----------|-------------|
+| `MODEL_BASE_PATH` | Path to directory containing GGUF model files |
+| `GITHUB_TOKEN` | GitHub Personal Access Token (for PR review feature) |
 
-| Endpoint             | Method | Description               |
-| -------------------- | ------ | ------------------------- |
-| `/`                  | GET    | Load dashboard            |
-| `/flask-api/submit`  | POST   | Submit PR for analysis    |
-| `/flask-api/polling` | POST   | Fetch analysis results    |
-| `/flask-api/reload`  | POST   | Reload previous analysis  |
-| `/flask-api/code`    | POST   | Generate code suggestions |
-| `/flask-api/health`  | GET    | Health check              |
+## System Requirements
 
----
-
-## How It Works
-
-1. User submits a GitHub Pull Request link
-2. System extracts changed files
-3. AI analyzes code across multiple dimensions
-4. Results are structured into sections
-5. UI displays insights interactively
-6. Polling updates results until completion
-
----
-
-## Limitations
-
-* Currently optimized for PR-based workflows only
-* Uses polling instead of real-time streaming
-* No persistent storage for past analyses
-
----
-
-## Future Improvements
-
-* Support for full repository analysis
-* Real-time updates using WebSockets
-* Integration with GitHub Actions
-* User authentication and history tracking
-
----
-
-## License
-
-This project is for educational and demonstration purposes.
+- 16+ CPU cores (recommended)
+- 32 GB RAM
+- No GPU required — runs fully on CPU with quantized models

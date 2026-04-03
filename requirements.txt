@@ -1,0 +1,7 @@
+flask
+python-dotenv
+psutil
+llama-cpp-python
+GitPython
+PyGithub
+fpdf
