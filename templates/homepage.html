@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MergeGuru – Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='homepage.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <span class="header-logo">🧑‍💻</span> MergeGuru
+</header>
+
+<div class="container">
+  <form id="myForm" class="input-box">
+    <input type="text" name="user_input_link" placeholder="Paste your GitHub repo or PR link..." required>
+    <select name="user_input_type" required>
+      <option value="" disabled selected>Type</option>
+      <option value="REPO">Repository</option>
+      <option value="MR">Merge Request</option>
+    </select>
+    <input type="text" name="user_input_language" placeholder="Language (e.g. python, java)">
+    <div class="btn-group">
+      <button type="submit">Analyze</button>
+      <button type="button" id="reloadButton">Reload</button>
+      <button type="button" id="downloadPdfBtn" style="display:none;">Download PDF</button>
+    </div>
+  </form>
+
+  <div id="carousel-container" style="display:none;"></div>
+</div>
+
+<div id="static-card-container">
+  <div class="row">
+    <div class="card">
+      <h3>🔧 Code Refactor</h3>
+      <p id="result-0">Suggestions for improving and simplifying your code structure.</p>
+    </div>
+    <div class="card">
+      <h3>📚 Documentation</h3>
+      <p id="result-1">Overview of documentation quality and coverage.</p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="card">
+      <h3>🐛 Bug Detection</h3>
+      <p id="result-2">Analyzed issues and potential bugs in the codebase.</p>
+    </div>
+    <div class="card">
+      <h3>💡 Bug Fixes</h3>
+      <p id="result-3">Suggested code fixes for identified issues.</p>
+    </div>
+  </div>
+  <div class="row single">
+    <div class="card wide">
+      <h3>⚡ Optimization</h3>
+      <p id="result-4">Performance and efficiency improvement insights.</p>
+    </div>
+  </div>
+</div>
+
+<div class="carousel-controls">
+  <button id="prevBtn" disabled>← Previous</button>
+  <button id="nextBtn" disabled>Next →</button>
+</div>
+
+<!-- Modal -->
+<div id="readMoreModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <h2 id="modal-title"></h2>
+    <p id="modal-content"></p>
+  </div>
+</div>
+
+<!-- Processing Modal -->
+<div id="processingModal" class="modal" style="display:none;">
+  <div class="modal-content processing">
+    <div class="spinner"></div>
+    <h2>Analyzing...</h2>
+    <p id="processing-message">Your analysis is in progress. This may take a few minutes.</p>
+  </div>
+</div>
+
+<!-- Code Assistant -->
+<div id="quickCoder">
+  <h2>💻 Code Assistant</h2>
+  <p class="coder-subtitle">Generate code snippets using local LLMs</p>
+
+  <select id="customSelect">
+    <option value="">Select Language</option>
+    <option value="python">Python</option>
+    <option value="java">Java</option>
+    <option value="javaScript">JavaScript</option>
+  </select>
+
+  <textarea id="RequestType" placeholder="Describe what you need..." rows="4"></textarea>
+  <button id="triggerCustomAction">Generate</button>
+  <textarea id="OutputText" rows="6" readonly placeholder="Output will appear here..."></textarea>
+</div>
+
+<script>
+  // --- Modal handlers ---
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelector('.close').addEventListener('click', () => {
+      document.getElementById('readMoreModal').style.display = 'none';
+    });
+    window.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('readMoreModal'))
+        document.getElementById('readMoreModal').style.display = 'none';
+    });
+  });
+
+  function bindReadMore() {
+    document.querySelectorAll('.read-more').forEach(link => {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('modal-title').innerText = this.dataset.title;
+        document.getElementById('modal-content').innerText = this.dataset.content;
+        document.getElementById('readMoreModal').style.display = 'block';
+      });
+    });
+  }
+
+  // --- Carousel ---
+  let currentIndex = 0;
+  let cardSets = [];
+
+  function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+  function transformRawData(results) {
+    return results.map(file => {
+      const fileId = file.path || file.file_name || 'Unknown File';
+      const { path, file_name, module_name, ...rest } = file;
+      const sections = [];
+      for (const key in rest) {
+        const value = rest[key];
+        let cardText = "All Good!";
+        if (Array.isArray(value) && value.length > 0) {
+          cardText = value.map(item => {
+            if (typeof item === 'string') return item;
+            if (typeof item === 'object' && item !== null)
+              return Object.entries(item).map(([k, v]) => `${capitalize(k)}: ${v}`).join('\n');
+            return String(item);
+          }).join('\n\n');
+        } else if (typeof value === 'string' && value.trim()) {
+          cardText = value;
+        }
+        sections.push({ title: capitalize(key), content: cardText });
+      }
+      return { path: fileId, sections };
+    });
+  }
+
+  function renderDynamicCarousel(files) {
+    const container = document.getElementById('carousel-container');
+    container.style.display = 'block';
+    document.getElementById('static-card-container').style.display = 'none';
+    container.innerHTML = '';
+    cardSets = [];
+
+    files.forEach((file, fi) => {
+      const cardSet = document.createElement('div');
+      cardSet.className = 'card-set' + (fi === 0 ? ' active' : '');
+
+      let html = `<h2 class="file-title">${file.path}</h2>`;
+      file.sections.forEach((section, i) => {
+        if (i % 2 === 0) html += '<div class="row">';
+        const isGood = section.content.trim() === 'All Good!';
+        const id = `result-${fi}-${i}`;
+        html += `<div class="card${isGood ? ' all-good' : ''}"><h3>${section.title}</h3><p id="${id}">${section.content.slice(0, 100)}${isGood ? '' : '...'}</p></div>`;
+        if (!isGood) {
+          setTimeout(() => {
+            const p = document.getElementById(id);
+            if (!p) return;
+            const a = document.createElement('a');
+            a.href = '#'; a.className = 'read-more'; a.textContent = ' Read more';
+            a.setAttribute('data-title', section.title);
+            a.setAttribute('data-content', section.content);
+            p.appendChild(a);
+            bindReadMore();
+          }, 0);
+        }
+        if (i % 2 === 1 || i === file.sections.length - 1) html += '</div>';
+      });
+
+      cardSet.innerHTML = html;
+      container.appendChild(cardSet);
+      cardSets.push(cardSet);
+    });
+
+    currentIndex = 0;
+    updateCarouselButtons();
+  }
+
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    if (currentIndex < cardSets.length - 1) {
+      cardSets[currentIndex].classList.remove('active');
+      cardSets[++currentIndex].classList.add('active');
+      updateCarouselButtons();
+    }
+  });
+  document.getElementById('prevBtn').addEventListener('click', () => {
+    if (currentIndex > 0) {
+      cardSets[currentIndex].classList.remove('active');
+      cardSets[--currentIndex].classList.add('active');
+      updateCarouselButtons();
+    }
+  });
+  function updateCarouselButtons() {
+    document.getElementById('prevBtn').disabled = currentIndex === 0;
+    document.getElementById('nextBtn').disabled = currentIndex === cardSets.length - 1;
+  }
+
+  // --- Submit ---
+  document.getElementById('myForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const link = fd.get('user_input_link'), type = fd.get('user_input_type'), lang = fd.get('user_input_language');
+
+    try {
+      const r1 = await fetch('/flask-api/submit', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_input_link: link, req_type: type, user_input_language: lang })
+      });
+      const d1 = await r1.json();
+      document.getElementById('processing-message').innerText = d1.message;
+      document.getElementById('processingModal').style.display = 'block';
+
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r2 = await fetch('/flask-api/polling', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ user_input_link: link, req_type: type })
+          });
+          const d2 = await r2.json();
+          if (d2.pdf_link) setupPdfDownload(d2.pdf_link);
+          const results = d2.data;
+          if (!Array.isArray(results) || !results.length) return;
+          document.getElementById('processingModal').style.display = 'none';
+          const flat = Array.isArray(results[0]) ? results[0] : results;
+          renderDynamicCarousel(transformRawData(flat));
+          if ((d2.status || '').toLowerCase() === 'completed' || attempts >= 20) clearInterval(poll);
+        } catch (err) { if (attempts >= 20) clearInterval(poll); }
+      }, 15000);
+    } catch (err) { console.error(err); }
+  });
+
+  // --- Reload ---
+  document.getElementById('reloadButton').addEventListener('click', async function () {
+    const fd = new FormData(document.getElementById('myForm'));
+    const link = fd.get('user_input_link'), type = fd.get('user_input_type');
+    try {
+      const r = await fetch('/flask-api/reload', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_input_link: link, req_type: type })
+      });
+      const d = await r.json();
+      if (d.pdf_link) setupPdfDownload(d.pdf_link);
+      const raw = Array.isArray(d.data[0]) ? d.data[0] : d.data;
+      renderDynamicCarousel(transformRawData(raw));
+      if (d.status === 'Ongoing') {
+        document.getElementById('processingModal').style.display = 'block';
+      }
+    } catch (err) { alert("Something went wrong. Please try again."); }
+  });
+
+  // --- Code Assistant ---
+  document.getElementById('triggerCustomAction').addEventListener('click', async () => {
+    const input = document.getElementById('RequestType').value.trim();
+    const lang = document.getElementById('customSelect').value;
+    const out = document.getElementById('OutputText');
+    if (!input) { out.value = "Please enter a request first."; return; }
+    out.value = "Generating...";
+    try {
+      const r = await fetch('/flask-api/code', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ question: input, user_input_language: lang })
+      });
+      const d = await r.json();
+      out.value = d.data || "No response.";
+    } catch (err) { out.value = "Error occurred."; }
+  });
+
+  // --- PDF ---
+  function setupPdfDownload(textContent) {
+    const btn = document.getElementById("downloadPdfBtn");
+    btn.style.display = "inline-block";
+    btn.onclick = () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const lines = doc.splitTextToSize(textContent, 180);
+      lines.forEach((line, i) => doc.text(line, 10, 10 + 10 * i));
+      doc.save("mergeguru_analysis.pdf");
+    };
+  }
+</script>
+
+</body>
+</html>
