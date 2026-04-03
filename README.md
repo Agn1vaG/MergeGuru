@@ -4,18 +4,6 @@ AI-powered code analysis platform that reviews pull requests, detects issues, an
 
 ---
 
-## Live Demo
-
-Not deployed yet
-
----
-
-## Screenshots
-
-*Add UI screenshots here*
-
----
-
 ## Overview
 
 MergeGuru is an AI-driven code review system designed to analyze code changes from GitHub pull requests. It identifies bugs, suggests fixes, improves code structure, evaluates documentation, and provides optimization insights.
